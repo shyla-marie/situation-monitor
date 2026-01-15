@@ -1,0 +1,775 @@
+# Enhanced Map Visualization & Data Accuracy Requirements
+
+---
+
+## Critical Fixes Required
+
+### 1. Flight Tracking - Full Global Coverage
+
+```
+PROBLEM: Only 2 flights displaying is completely wrong.
+
+REQUIREMENTS:
+
+Data Source Implementation:
+- Use OpenSky Network API: https://opensky-network.org/api/states/all
+  - Returns ALL aircraft currently airborne (typically 5,000-15,000+)
+  - Free tier: 400 credits/day, anonymous: 100 requests/day
+  - Each request returns global state vectors
+
+- Fallback: ADS-B Exchange API
+  - https://www.adsbexchange.com/data/
+  - Military aircraft focus
+  - Requires API key for full access
+
+Implementation Fix:
+1. Fetch ALL aircraft from OpenSky, not just a sample
+2. Filter client-side for performance, not server-side truncation
+3. Implement clustering at low zoom levels (show counts, not individual planes)
+4. At high zoom, show individual aircraft with proper icons
+
+Aircraft Volume Expectations:
+- Global view: 8,000-15,000 aircraft visible
+- Regional view (Europe): 2,000-4,000 aircraft
+- Conflict zone focus: 50-500 aircraft depending on area
+- Military filter: 100-500 trackable military aircraft globally
+
+If you're only seeing 2 flights, check:
+- API response is being parsed correctly
+- You're not limiting results in the query
+- Pagination is handled if API paginates
+- Filter isn't accidentally too restrictive
+```
+
+### 2. Realistic Aircraft Visualization
+
+```
+STOP: No more generic dots for aircraft.
+
+REQUIRED AIRCRAFT ICONOGRAPHY:
+
+Create distinct SVG icons for each aircraft category:
+
+MILITARY AIRCRAFT:
+┌─────────────────────────────────────────────────────────┐
+│ Fighter/Attack    →  [Fighter jet silhouette]          │
+│                      Small, angular, single triangle    │
+│                      Color: Red                         │
+│                      Examples: F-16, F-35, Su-35        │
+│                                                         │
+│ Bomber            →  [Large aircraft silhouette]       │
+│                      Larger, swept wings                │
+│                      Color: Dark Red                    │
+│                      Examples: B-52, Tu-95, B-2         │
+│                                                         │
+│ Tanker            →  [Wide-body with boom]             │
+│                      Large body, refueling boom icon    │
+│                      Color: Orange                      │
+│                      Examples: KC-135, KC-10, A330 MRTT │
+│                                                         │
+│ Surveillance      →  [Aircraft with radar dome]        │
+│                      Distinctive rotodome or sensors    │
+│                      Color: Blue                        │
+│                      Examples: E-3 AWACS, RC-135, P-8   │
+│                                                         │
+│ Transport         →  [Cargo plane silhouette]          │
+│                      Large body, high wing              │
+│                      Color: Yellow                      │
+│                      Examples: C-17, C-130, Il-76       │
+│                                                         │
+│ Helicopter        →  [Rotor silhouette]                │
+│                      Rotor disc indicated               │
+│                      Color: Orange (attack) / Green     │
+│                      Examples: AH-64, Mi-24, CH-47      │
+│                                                         │
+│ Drone/UAV         →  [Small angular shape]             │
+│                      Distinct from manned aircraft      │
+│                      Color: Purple                      │
+│                      Examples: MQ-9, RQ-4, Bayraktar    │
+└─────────────────────────────────────────────────────────┘
+
+CIVILIAN AIRCRAFT (for context):
+┌─────────────────────────────────────────────────────────┐
+│ Commercial        →  [Standard airliner icon]          │
+│                      Color: Light Gray (de-emphasized)  │
+│                      Show only at high zoom or filtered │
+│                                                         │
+│ Private/GA        →  [Small plane icon]                │
+│                      Color: Light Gray                  │
+│                      Usually hidden unless relevant     │
+│                                                         │
+│ Government/VIP    →  [Airliner with star marker]       │
+│                      Color: Gold                        │
+│                      Examples: Air Force One variants   │
+└─────────────────────────────────────────────────────────┘
+
+ICON BEHAVIOR:
+- Rotate icon to match aircraft heading
+- Scale slightly by altitude (higher = slightly smaller)
+- Add motion trail showing last 5-10 position updates
+- Pulse animation for aircraft squawking emergency
+- Highlighted ring for aircraft of interest
+
+AIRCRAFT IDENTIFICATION LOGIC:
+Use combination of:
+1. ICAO type designator (from API)
+2. Callsign patterns:
+   - "RCH" = US Military (Reach flights)
+   - "DUKE", "EVIL" = US Military
+   - "RRR" = Royal Air Force
+   - "RFF" = French Air Force
+   - "GAF" = German Air Force
+   - "IAM" = Italian Air Force
+   - "MMF" = Russian Military
+3. Known military hex code ranges
+4. Flight patterns (holding patterns, unusual routes)
+```
+
+### 3. Vessel Visualization - Proper Maritime Icons
+
+```
+STOP: No more identical dots for ships.
+
+REQUIRED VESSEL ICONOGRAPHY:
+
+NAVAL VESSELS:
+┌─────────────────────────────────────────────────────────┐
+│ Aircraft Carrier  →  [Carrier silhouette - flat top]   │
+│                      Large rectangle with angled deck   │
+│                      Color: Bright Red                  │
+│                      Size: Largest vessel icon          │
+│                                                         │
+│ Destroyer/Cruiser →  [Warship silhouette]              │
+│                      Sleek hull with superstructure     │
+│                      Color: Red                         │
+│                                                         │
+│ Submarine         →  [Submarine shape when surfaced]   │
+│                      Cigar shape with sail              │
+│                      Color: Dark Red                    │
+│                      Note: Rarely visible               │
+│                                                         │
+│ Frigate/Corvette  →  [Smaller warship]                 │
+│                      Smaller than destroyer             │
+│                      Color: Orange-Red                  │
+│                                                         │
+│ Patrol Boat       →  [Small vessel icon]               │
+│                      Color: Orange                      │
+│                                                         │
+│ Amphibious        →  [Landing ship silhouette]         │
+│                      Flat deck, well deck indicated     │
+│                      Color: Red-Orange                  │
+└─────────────────────────────────────────────────────────┘
+
+COMMERCIAL VESSELS (context):
+┌─────────────────────────────────────────────────────────┐
+│ Container Ship    →  [Ship with stacked containers]    │
+│                      Color: Blue                        │
+│                                                         │
+│ Tanker (Oil/LNG)  →  [Long vessel, domed tanks]        │
+│                      Color: Blue-Green                  │
+│                      HIGHLIGHT if near conflict zones   │
+│                                                         │
+│ Bulk Carrier      →  [Ship with cargo holds]           │
+│                      Color: Blue-Gray                   │
+│                      HIGHLIGHT: Grain ships, strategic  │
+│                                                         │
+│ Cruise/Passenger  →  [Multi-deck vessel]               │
+│                      Color: Light Blue                  │
+└─────────────────────────────────────────────────────────┘
+
+SPECIAL INDICATORS:
+┌─────────────────────────────────────────────────────────┐
+│ AIS OFF           →  [Vessel icon with ⚠️ overlay]     │
+│                      Dashed outline, last known pos    │
+│                      Color: Yellow warning             │
+│                      CRITICAL: Flag for investigation  │
+│                                                         │
+│ Sanctioned Vessel →  [Vessel with 🚫 overlay]          │
+│                      Color: Red outline                 │
+│                                                         │
+│ Dark Fleet        →  [Ghost ship icon]                 │
+│                      Semi-transparent                   │
+│                      Used for suspected sanction evade  │
+└─────────────────────────────────────────────────────────┘
+
+VESSEL IDENTIFICATION:
+1. AIS ship type code (from API)
+2. MMSI number patterns (naval ranges by country)
+3. Known naval vessel MMSI database
+4. Vessel name matching against military registries
+5. Behavior analysis (speed, route, AIS status)
+```
+
+### 4. Weather Visualization - Operational Impact Focus
+
+```
+WEATHER DATA SOURCES:
+- OpenWeatherMap API (free tier available)
+- NOAA GFS data
+- Windy.com API (if available)
+
+VISUALIZATION APPROACH - NOT just temperature:
+
+Focus on OPERATIONAL IMPACT for military/conflict:
+
+ATMOSPHERIC CONDITIONS:
+┌─────────────────────────────────────────────────────────┐
+│ VISIBILITY OVERLAY                                      │
+│ ├─ Clear (>10km)     → Transparent (no overlay)        │
+│ ├─ Reduced (5-10km)  → Light yellow haze               │
+│ ├─ Poor (1-5km)      → Orange haze                     │
+│ └─ Fog (<1km)        → Dense gray overlay              │
+│                                                         │
+│ Implication: Affects air operations, drone usage,      │
+│              surveillance effectiveness                 │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│ PRECIPITATION RADAR                                     │
+│ ├─ Light rain        → Light blue dots                 │
+│ ├─ Moderate rain     → Blue animated drops             │
+│ ├─ Heavy rain        → Dark blue, dense animation      │
+│ ├─ Snow              → White particles                  │
+│ └─ Thunderstorms     → ⛈️ icons with lightning bolts   │
+│                                                         │
+│ Show as animated overlay, toggle-able                  │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│ WIND CONDITIONS (Critical for operations)              │
+│                                                         │
+│ Visualization: Animated wind particle flow             │
+│ ├─ Calm (<10kt)      → Slow, sparse particles          │
+│ ├─ Moderate (10-25kt)→ Medium flow                     │
+│ ├─ Strong (25-50kt)  → Fast, dense flow                │
+│ └─ Severe (>50kt)    → Very fast, warning color        │
+│                                                         │
+│ Wind barbs at key locations showing direction/speed    │
+│                                                         │
+│ Implication: Affects helicopter ops, parachute drops,  │
+│              naval operations, drone stability          │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│ SEA STATE (for maritime areas)                         │
+│ ├─ Calm (0-1m)       → Flat blue                       │
+│ ├─ Moderate (1-2.5m) → Light wave texture              │
+│ ├─ Rough (2.5-4m)    → Animated waves                  │
+│ └─ Severe (>4m)      → Heavy animation + warning       │
+│                                                         │
+│ Implication: Affects naval ops, landing craft,         │
+│              submarine detection                        │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│ CLOUD COVER (Satellite/recon impact)                   │
+│ ├─ Clear (<25%)      → No overlay                      │
+│ ├─ Scattered (25-50%)→ Sparse cloud patches            │
+│ ├─ Broken (50-75%)   → More cloud coverage             │
+│ └─ Overcast (>75%)   → Full cloud layer                │
+│                                                         │
+│ Implication: Affects satellite imagery, air recon,     │
+│              precision munitions guidance               │
+└─────────────────────────────────────────────────────────┘
+
+WEATHER LAYER CONTROLS:
+[Toggle] Precipitation Radar
+[Toggle] Wind Flow Animation  
+[Toggle] Cloud Cover
+[Toggle] Visibility Overlay
+[Toggle] Sea State (maritime only)
+[Slider] Forecast Time (+0h to +72h)
+```
+
+### 5. Cyber/Infrastructure Visualization - Geographic Impact Areas
+
+```
+STOP: Cyber events need geographic representation, not just text.
+
+INFRASTRUCTURE STATUS VISUALIZATION:
+
+INTERNET CONNECTIVITY:
+┌─────────────────────────────────────────────────────────┐
+│ CHOROPLETH OVERLAY (by country/region):                │
+│                                                         │
+│ Connectivity Level:                                     │
+│ ├─ Normal (>95%)     → Green tint or no overlay        │
+│ ├─ Degraded (80-95%) → Yellow tint                     │
+│ ├─ Significant (50-80%) → Orange tint                  │
+│ ├─ Severe (<50%)     → Red tint                        │
+│ └─ Total Outage (0%) → Dark red/black with ⚠️          │
+│                                                         │
+│ Data Source: IODA, Cloudflare Radar, RIPE Atlas        │
+│                                                         │
+│ Show connectivity trend arrow (↑↓→) for each region    │
+└─────────────────────────────────────────────────────────┘
+
+ACTIVE CYBER INCIDENTS:
+┌─────────────────────────────────────────────────────────┐
+│ Icon Types:                                             │
+│                                                         │
+│ 🔴 DDoS Attack      → Pulsing red circle at target     │
+│                       Size indicates severity          │
+│                       Animated "impact waves"          │
+│                                                         │
+│ 🟠 BGP Hijack       → Orange network icon              │
+│                       Lines showing affected routes    │
+│                                                         │
+│ 🟡 DNS Issues       → Yellow warning triangle          │
+│                       At affected region               │
+│                                                         │
+│ 🟣 Malware Campaign → Purple biohazard-style icon      │
+│                       Spread pattern if known          │
+│                                                         │
+│ ⚫ Blackout         → Black filled region              │
+│                       Stark visual impact              │
+└─────────────────────────────────────────────────────────┘
+
+POWER GRID STATUS:
+┌─────────────────────────────────────────────────────────┐
+│ Overlay showing power infrastructure:                   │
+│                                                         │
+│ ⚡ Power Plant      → Lightning bolt icon              │
+│                       Green=operational, Red=offline   │
+│                                                         │
+│ 〰️ Transmission     → Lines connecting infrastructure  │
+│                       Color = load status              │
+│                                                         │
+│ Blackout Zones      → Dark overlay on affected areas   │
+│                       With timestamp of outage start   │
+│                                                         │
+│ Data: ENTSO-E (Europe), EIA (US), news reports         │
+└─────────────────────────────────────────────────────────┘
+
+COMMUNICATIONS STATUS:
+┌─────────────────────────────────────────────────────────┐
+│ 📡 Cell Towers      → Antenna icons (zoom-dependent)   │
+│                       Show outages in conflict zones   │
+│                                                         │
+│ 🛰️ Satellite Comms  → Satellite icon with coverage    │
+│                       Show Starlink availability       │
+│                       GPS interference zones           │
+│                                                         │
+│ 🔌 Submarine Cables → Lines on ocean floor             │
+│                       Highlight if damaged/cut         │
+└─────────────────────────────────────────────────────────┘
+
+INCIDENT DETAIL POPUP:
+When clicking a cyber incident:
+┌─────────────────────────────────────────────────────────┐
+│ 🔴 DDoS Attack - Ukraine Banking Sector                │
+│ ─────────────────────────────────────────────────────   │
+│ Started: 2 hours ago                                    │
+│ Status: ONGOING                                         │
+│ Severity: HIGH                                          │
+│ Targets: PrivatBank, Monobank, NBU                     │
+│ Impact: ~40% service degradation                       │
+│ Attribution: Suspected Russian origin (unconfirmed)    │
+│ ─────────────────────────────────────────────────────   │
+│ Affected Area: [Mini-map highlighting region]          │
+│ Sources: NetBlocks, IODA, Local reports               │
+│ ─────────────────────────────────────────────────────   │
+│ [View Timeline] [Related Incidents] [Sources]          │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 6. Prediction Markets - Conflict-Relevant Filtering & Visualization
+
+```
+PROBLEM: Showing irrelevant prediction markets is useless.
+
+FILTERING REQUIREMENTS:
+
+POLYMARKET RELEVANT CATEGORIES:
+┌─────────────────────────────────────────────────────────┐
+│ Search/filter for markets containing:                   │
+│                                                         │
+│ CONFLICT KEYWORDS:                                      │
+│ - war, conflict, invasion, attack, military            │
+│ - NATO, troops, soldiers, casualties                   │
+│ - nuclear, WMD, chemical, biological                   │
+│ - sanctions, blockade, embargo                         │
+│ - ceasefire, peace, treaty, negotiations               │
+│ - escalation, de-escalation                            │
+│                                                         │
+│ GEOGRAPHIC KEYWORDS:                                    │
+│ - Ukraine, Russia, Crimea, Donbas                      │
+│ - Taiwan, China, South China Sea                       │
+│ - Israel, Palestine, Gaza, Iran, Hezbollah             │
+│ - North Korea, Korean peninsula                        │
+│ - Syria, Yemen, Sudan                                  │
+│                                                         │
+│ EXCLUDE:                                                │
+│ - Sports, entertainment, celebrities                   │
+│ - Crypto prices, stock predictions                     │
+│ - US domestic politics (unless military-related)       │
+│ - Weather, natural disasters (unless conflict impact)  │
+└─────────────────────────────────────────────────────────┘
+
+MANIFOLD MARKETS FILTERING:
+- Use tags: #geopolitics, #war, #military, #conflict
+- Filter by group: "Geopolitics", "International Relations"
+- Exclude low-liquidity markets (<$1000 volume)
+
+VISUALIZATION - MAKE IT MEANINGFUL:
+
+MAIN DASHBOARD WIDGET:
+┌─────────────────────────────────────────────────────────┐
+│ 📊 CONFLICT PREDICTION MARKETS                         │
+│ ─────────────────────────────────────────────────────   │
+│                                                         │
+│ ESCALATION INDICATORS          Current    24h    7d    │
+│ ├─ Russia major offensive       34%      +5%    +12%   │
+│ │  [▓▓▓▓▓▓▓░░░░░░░░░░░░░] ↗️                          │
+│ │                                                       │
+│ ├─ China-Taiwan conflict 2025   18%      +1%    -2%    │
+│ │  [▓▓▓▓░░░░░░░░░░░░░░░░] →                           │
+│ │                                                       │
+│ ├─ Iran nuclear weapon          28%      +3%    +8%    │
+│ │  [▓▓▓▓▓▓░░░░░░░░░░░░░░] ↗️                          │
+│ │                                                       │
+│ └─ NATO direct involvement      12%      +2%    +4%    │
+│    [▓▓▓░░░░░░░░░░░░░░░░░] ↗️                          │
+│                                                         │
+│ DE-ESCALATION INDICATORS                               │
+│ ├─ Ukraine ceasefire 2025       22%      -3%    -8%    │
+│ │  [▓▓▓▓▓░░░░░░░░░░░░░░░] ↘️                          │
+│ │                                                       │
+│ └─ Russia-West negotiations     15%      +1%    +2%    │
+│    [▓▓▓▓░░░░░░░░░░░░░░░░] →                           │
+│                                                         │
+│ ─────────────────────────────────────────────────────   │
+│ 🔔 SIGNIFICANT MOVES (>5% in 24h):                     │
+│ • "Russia attacks NATO country" jumped 8% → now 7%    │
+│ • "Ukraine retakes Crimea 2025" dropped 6% → now 4%   │
+└─────────────────────────────────────────────────────────┘
+
+MAP INTEGRATION:
+- When clicking a region, show relevant prediction markets
+- Overlay "tension indicator" derived from markets:
+  
+  Regional Tension Score = weighted average of:
+  - Relevant conflict probability markets
+  - Weighted by liquidity (more $ = more weight)
+  - Weighted by time horizon (sooner = more weight)
+
+  Display as color intensity on region:
+  Low tension (0-20%): Cool blue
+  Medium (20-40%): Yellow
+  High (40-60%): Orange  
+  Critical (60%+): Red
+
+TREND CHARTS:
+┌─────────────────────────────────────────────────────────┐
+│ Russia Major Offensive Probability                      │
+│ 50%│                                    ╭──            │
+│    │                              ╭─────╯              │
+│ 30%│                    ╭────────╯                     │
+│    │         ╭──────────╯                              │
+│ 10%│─────────╯                                         │
+│    └────────────────────────────────────────────       │
+│     -30d        -20d        -10d        Today          │
+│                                                         │
+│ Volume: $2.3M | Trades: 12,453 | Last: 2 min ago       │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 7. Remove Simulated/Mock Data - Real Sources Only
+
+```
+CRITICAL: NO FAKE DATA ANYWHERE
+
+TWITTER/X DATA:
+┌─────────────────────────────────────────────────────────┐
+│ DO NOT use simulated tweets like:                       │
+│ ❌ "Mock tweet from @OSINTdefender..."                 │
+│ ❌ Hardcoded example data                              │
+│ ❌ Random generated content                            │
+│                                                         │
+│ INSTEAD, implement REAL data collection:               │
+│                                                         │
+│ Option 1: Cookie-based Authentication                  │
+│ - Extract cookies from logged-in browser session       │
+│ - Use: ct0, auth_token from twitter.com cookies        │
+│ - Make requests to twitter.com/i/api/... endpoints     │
+│ - Handle rate limits gracefully                        │
+│                                                         │
+│ Option 2: Use Nitter Instances (Twitter proxy)         │
+│ - RSS feeds from nitter.net instances                  │
+│ - Parse @username feeds for OSINT accounts             │
+│ - No authentication required                           │
+│ - May have availability issues                         │
+│                                                         │
+│ Option 3: Scraping (less reliable)                     │
+│ - Use Playwright/Puppeteer with cookies                │
+│ - Handle JavaScript rendering                          │
+│ - Respect rate limits                                  │
+│                                                         │
+│ If Twitter access fails:                               │
+│ - Display "Twitter feed unavailable" message           │
+│ - DO NOT show fake placeholder data                    │
+│ - Rely more heavily on other sources                   │
+│ - Suggest user provide cookies in settings             │
+└─────────────────────────────────────────────────────────┘
+
+FOR ALL DATA SOURCES:
+┌─────────────────────────────────────────────────────────┐
+│ Rules:                                                  │
+│ 1. If API fails → show error state, not fake data      │
+│ 2. If rate limited → show "rate limited" message       │
+│ 3. If no data → show "no recent data" not mock data    │
+│ 4. Always show data freshness timestamp                │
+│ 5. Always show source attribution                      │
+│                                                         │
+│ Error States to Implement:                             │
+│ ┌─────────────────────────────────────┐                │
+│ │ ⚠️ Twitter Feed                     │                │
+│ │ Status: Authentication Required     │                │
+│ │ Add Twitter cookies in Settings     │                │
+│ │ [Configure] [Use Alternatives]      │                │
+│ └─────────────────────────────────────┘                │
+│                                                         │
+│ ┌─────────────────────────────────────┐                │
+│ │ ⏳ OpenSky Network                  │                │
+│ │ Status: Rate Limited                │                │
+│ │ Next refresh in: 4:32               │                │
+│ │ Last data: 5 minutes ago            │                │
+│ └─────────────────────────────────────┘                │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 8. Conflict Events - Proper Map Markers
+
+```
+CONFLICT EVENT VISUALIZATION:
+
+Not just dots - meaningful tactical symbols:
+
+MILITARY SYMBOLS (Based on MIL-STD-2525 simplified):
+┌─────────────────────────────────────────────────────────┐
+│ HOSTILE EVENTS (Red):                                   │
+│                                                         │
+│ 💥 Strike/Explosion                                     │
+│    → Starburst icon                                    │
+│    → Size = reported magnitude                         │
+│    → Animated pulse if <1 hour old                     │
+│                                                         │
+│ 🚀 Missile/Rocket Attack                               │
+│    → Missile silhouette with trajectory line           │
+│    → Show origin → impact if known                     │
+│    → Animate flight path                               │
+│                                                         │
+│ 🎯 Artillery/Shelling                                  │
+│    → Impact burst icon                                 │
+│    → Cluster multiple impacts in area                  │
+│                                                         │
+│ ⚔️ Ground Combat                                       │
+│    → Crossed swords icon                               │
+│    → At location of reported fighting                  │
+│                                                         │
+│ 🔥 Fire/Destruction                                    │
+│    → Flame icon                                        │
+│    → For infrastructure damage                         │
+│                                                         │
+│ FRIENDLY/ALLIED (Blue):                                │
+│ 🛡️ Defensive Position                                 │
+│ 🏥 Humanitarian Operation                              │
+│ ✈️ Air Defense Activation                              │
+│                                                         │
+│ NEUTRAL/UNKNOWN (Yellow):                              │
+│ ❓ Unconfirmed Report                                  │
+│ 👁️ Observation/Recon                                  │
+│                                                         │
+│ SPECIAL EVENTS:                                        │
+│ ☢️ Nuclear/Radiological                               │
+│ ☣️ Chemical/Biological                                │
+│ 📍 Strategic Location                                  │
+│ 🏛️ Government/Military HQ                            │
+└─────────────────────────────────────────────────────────┘
+
+EVENT CLUSTERING:
+At low zoom levels:
+┌─────────────────────────────────────────────────────────┐
+│ Instead of 500 overlapping dots:                        │
+│                                                         │
+│ Show cluster circles:                                   │
+│ ┌──────────┐                                           │
+│ │    47    │  ← Number of events in cluster            │
+│ │  events  │                                           │
+│ └──────────┘                                           │
+│                                                         │
+│ Color = average severity of clustered events           │
+│ Size = proportional to event count                     │
+│ Click to zoom in and see individual events             │
+│                                                         │
+│ Cluster breakdown on hover:                            │
+│ ┌─────────────────────────────┐                        │
+│ │ Kharkiv Oblast (47 events)  │                        │
+│ │ ├─ Strikes: 23             │                        │
+│ │ ├─ Artillery: 15           │                        │
+│ │ ├─ Ground combat: 6        │                        │
+│ │ └─ Other: 3                │                        │
+│ │ Severity: HIGH              │                        │
+│ │ [Click to zoom]             │                        │
+│ └─────────────────────────────┘                        │
+└─────────────────────────────────────────────────────────┘
+
+EVENT TIMELINE TRAILS:
+For ongoing situations, show temporal progression:
+┌─────────────────────────────────────────────────────────┐
+│ Enable "Show event trails" toggle:                      │
+│                                                         │
+│ Events fade based on age:                               │
+│ • <1 hour: 100% opacity, animated pulse               │
+│ • 1-6 hours: 80% opacity                              │
+│ • 6-24 hours: 50% opacity                             │
+│ • 24-48 hours: 25% opacity                            │
+│ • >48 hours: Hidden (unless pinned)                   │
+│                                                         │
+│ This creates visual "heat" showing active areas        │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 9. Complete Layer Control Panel
+
+```
+LAYER CONTROLS UI:
+
+┌─────────────────────────────────────────────────────────┐
+│ 🗺️ MAP LAYERS                              [Presets ▼] │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│ CONFLICT EVENTS                                         │
+│ ├─ [✓] All Events                          [🎨 Style]  │
+│ │   ├─ [✓] Strikes & Explosions                       │
+│ │   ├─ [✓] Artillery/Shelling                         │
+│ │   ├─ [✓] Ground Combat                              │
+│ │   ├─ [✓] Air Activity                               │
+│ │   └─ [ ] Minor Incidents                            │
+│ ├─ [Slider] Time Range: [1h ───●─── 7d]              │
+│ └─ [Slider] Min Severity: [1 ──●──── 10]             │
+│                                                         │
+│ MILITARY TRACKING                                       │
+│ ├─ [✓] Aircraft                            [🎨 Style]  │
+│ │   ├─ [✓] Military Only                              │
+│ │   ├─ [ ] Include Civilian                           │
+│ │   ├─ [✓] Show Trails                                │
+│ │   └─ [✓] Show Labels                                │
+│ └─ [✓] Naval Vessels                       [🎨 Style]  │
+│     ├─ [✓] Military Only                              │
+│     ├─ [ ] Commercial (strategic)                     │
+│     └─ [✓] Show AIS-Off Warnings                      │
+│                                                         │
+│ INFRASTRUCTURE                                          │
+│ ├─ [ ] Internet Connectivity               [🎨 Style]  │
+│ ├─ [ ] Power Grid Status                              │
+│ ├─ [✓] Active Cyber Incidents                         │
+│ └─ [ ] Communications                                  │
+│                                                         │
+│ WEATHER/ENVIRONMENT                                     │
+│ ├─ [ ] Precipitation Radar                            │
+│ ├─ [ ] Wind Flow                                      │
+│ ├─ [ ] Visibility                                     │
+│ ├─ [ ] Cloud Cover                                    │
+│ └─ [ ] Sea State                                      │
+│                                                         │
+│ ANALYSIS OVERLAYS                                       │
+│ ├─ [ ] Threat Heat Map                                │
+│ ├─ [ ] Territorial Control                            │
+│ ├─ [ ] Prediction Market Tension                      │
+│ └─ [ ] Front Lines (where applicable)                 │
+│                                                         │
+├─────────────────────────────────────────────────────────┤
+│ PRESETS:                                                │
+│ [Military Focus] [Infrastructure] [Full Picture]       │
+│ [Minimal] [Weather Ops] [Economic]                     │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 10. Data Source Status Dashboard
+
+```
+Always show users what data is actually available:
+
+┌─────────────────────────────────────────────────────────┐
+│ 📡 DATA SOURCE STATUS                     [Refresh All] │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│ Source              Status      Last Update    Items    │
+│ ─────────────────────────────────────────────────────   │
+│ ✅ OpenSky Network   Active      12 sec ago    8,432    │
+│ ✅ Reddit OSINT      Active      45 sec ago    156      │
+│ ✅ RSS Feeds         Active      2 min ago     89       │
+│ ✅ Polymarket        Active      5 min ago     23       │
+│ ✅ Manifold          Active      5 min ago     47       │
+│ ⚠️ Twitter/X        Limited     Rate limited   --      │
+│ ⚠️ Marine Traffic   Degraded    API timeout    142     │
+│ ✅ IODA (Internet)   Active      3 min ago     --       │
+│ ✅ GDELT Events      Active      15 min ago    1,247    │
+│ ❌ ADS-B Exchange    Error       API key req   --       │
+│                                                         │
+│ Total Events in DB: 12,847 (last 24h)                  │
+│ Last Full Refresh: 2 minutes ago                       │
+│                                                         │
+│ [Configure API Keys] [View Logs] [Force Refresh]       │
+└─────────────────────────────────────────────────────────┘
+
+This transparency is CRITICAL:
+- Users know what data they're seeing
+- Users know what data is MISSING
+- No confusion about why something isn't showing
+- Clear path to fix issues (add API keys, etc.)
+```
+
+---
+
+## Summary of Required Changes
+
+```
+PRIORITY FIXES:
+
+1. ❌→✅ FLIGHTS: Query ALL aircraft from OpenSky, not 2
+   - Expect 8,000-15,000 globally
+   - Implement clustering at low zoom
+   - Use proper aircraft type icons
+
+2. ❌→✅ VESSELS: Show proper ship icons by type
+   - Military vs commercial distinction
+   - Flag AIS-disabled vessels
+   - Size by vessel class
+
+3. ❌→✅ WEATHER: Show operational impact, not just temperature
+   - Visibility, wind, precipitation overlays
+   - Animated where appropriate
+   - Sea state for maritime areas
+
+4. ❌→✅ CYBER: Geographic visualization
+   - Choropleth for connectivity status
+   - Incident markers at affected locations
+   - Infrastructure status overlay
+
+5. ❌→✅ PREDICTION MARKETS: Filter to conflict-relevant only
+   - Remove sports, crypto, entertainment
+   - Show meaningful trend visualization
+   - Integrate tension scores on map
+
+6. ❌→✅ TWITTER: Real data or honest error state
+   - NO mock/simulated tweets
+   - Implement cookie auth or Nitter fallback
+   - Show clear error state if unavailable
+
+7. ❌→✅ EVENT MARKERS: Tactical symbols, not dots
+   - Different icons by event type
+   - Size/color by severity
+   - Temporal fade based on age
+   - Clustering at low zoom
+
+8. ❌→✅ DATA TRANSPARENCY: Show source status
+   - What's working, what's not
+   - Last update times
+   - Clear error messaging
+```
+
+---
+
+This enhanced prompt should result in a genuinely useful situation awareness tool rather than a demo with placeholder data.

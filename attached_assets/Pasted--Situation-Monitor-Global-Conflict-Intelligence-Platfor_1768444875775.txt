@@ -1,0 +1,1528 @@
+# Situation Monitor: Global Conflict Intelligence Platform
+
+## Build Specification for Replit
+
+---
+
+### Project Overview
+
+Build a comprehensive real-time global conflict monitoring and intelligence platform that aggregates, analyzes, and visualizes multi-source data on a Google Maps interface. The system uses RAG (Retrieval-Augmented Generation) for intelligent analysis and prediction generation.
+
+---
+
+### Phase 1: Project Foundation
+
+#### Step 1.1: Initialize the Project
+
+```
+Create a new Replit project with the following structure:
+
+/situation-monitor
+├── /backend
+│   ├── /api
+│   │   ├── routes.py
+│   │   └── websocket.py
+│   ├── /collectors
+│   │   ├── reddit_collector.py
+│   │   ├── twitter_collector.py
+│   │   ├── prediction_markets.py
+│   │   ├── osint_feeds.py
+│   │   ├── flight_tracker.py
+│   │   ├── marine_tracker.py
+│   │   ├── infrastructure_monitor.py
+│   │   └── economic_monitor.py
+│   ├── /analysis
+│   │   ├── rag_engine.py
+│   │   ├── threat_assessor.py
+│   │   ├── geolocation.py
+│   │   └── prediction_engine.py
+│   ├── /database
+│   │   ├── vector_store.py
+│   │   └── models.py
+│   └── main.py
+├── /frontend
+│   ├── /src
+│   │   ├── /components
+│   │   ├── /hooks
+│   │   ├── /stores
+│   │   └── App.jsx
+│   └── index.html
+├── requirements.txt
+└── .env
+```
+
+#### Step 1.2: Core Dependencies
+
+```
+Install these packages:
+
+Backend (Python):
+- fastapi, uvicorn (API server)
+- asyncpraw (Reddit API)
+- tweepy (Twitter/X API)
+- httpx, aiohttp (async HTTP)
+- chromadb or pinecone-client (vector database for RAG)
+- langchain, openai (RAG implementation)
+- shapely, geopy (geospatial processing)
+- pandas, numpy (data processing)
+- websockets (real-time updates)
+- redis (caching and pub/sub)
+- sqlalchemy (database ORM)
+- python-dotenv (environment variables)
+- feedparser (RSS feeds)
+- beautifulsoup4 (web scraping)
+
+Frontend (Node/React):
+- react, react-dom
+- @vis.gl/react-google-maps (Google Maps)
+- @tanstack/react-query (data fetching)
+- zustand (state management)
+- socket.io-client (WebSocket)
+- recharts (data visualization)
+- tailwindcss (styling)
+- date-fns (date handling)
+```
+
+---
+
+### Phase 2: Data Collection Layer
+
+#### Step 2.1: Reddit Collector
+
+```
+Build /backend/collectors/reddit_collector.py:
+
+Create an async Reddit collector class that:
+1. Monitors these subreddits in real-time:
+   - r/CombatFootage
+   - r/UkraineWarVideoReport
+   - r/CredibleDefense
+   - r/geopolitics
+   - r/OSINT
+   - r/syriancivilwar
+   - r/YemeniCrisis
+   - r/IsraelPalestine
+   - r/NCD (NonCredibleDefense for early signals)
+   - r/worldnews (filtered for conflict)
+
+2. For each post/comment, extract:
+   - Timestamp, author, subreddit
+   - Full text content
+   - Any URLs/media links
+   - Upvote ratio and score (credibility signal)
+   - Flair tags
+
+3. Implement geolocation extraction:
+   - Parse text for location mentions
+   - Use NER (Named Entity Recognition) for place names
+   - Geocode locations to lat/long coordinates
+
+4. Store raw data with embedding vectors for RAG
+
+5. Rate limit: respect Reddit API limits (100 requests/minute)
+```
+
+#### Step 2.2: Twitter/X Collector with Cookie Authentication
+
+```
+Build /backend/collectors/twitter_collector.py:
+
+Create a Twitter collector that uses cookie-based authentication:
+
+1. Cookie Authentication Setup:
+   - Accept browser cookies from .env (CT0, AUTH_TOKEN, etc.)
+   - Use these cookies to authenticate requests
+   - Implement cookie refresh mechanism
+   - Handle rate limits and temporary blocks
+
+2. Monitor these account categories:
+   
+   OSINT Accounts:
+   - @OSINTdefender, @IntelCrab, @GeoConfirmed
+   - @UAControlMap, @Nrg8000, @JulianRoepcke
+   - @RALee85, @KofmanMichael, @RobLee85
+   
+   Official/Military:
+   - @DefenceHQ, @DeptofDefense, @NATO
+   - @IDF, @mod_russia (monitor for statements)
+   
+   Journalists:
+   - @BNONews, @sentdefender
+   - Regional conflict correspondents
+   
+   Early Warning:
+   - @earthquakeBot, @aiabornethreat
+   - Nuclear monitoring accounts
+
+3. Search queries to monitor:
+   - "breaking" + conflict keywords
+   - Specific conflict zones by name
+   - Weapons systems mentions
+   - Troop movement keywords
+
+4. For each tweet, extract:
+   - Full text, timestamp, author
+   - Media attachments (images for later OCR if needed)
+   - Quote tweets and reply chains
+   - Engagement metrics as credibility signals
+   - Geotags if available
+```
+
+#### Step 2.3: Prediction Markets Collector
+
+```
+Build /backend/collectors/prediction_markets.py:
+
+POLYMARKET Integration:
+1. Connect to Polymarket API (or scrape if no public API):
+   - Endpoint: https://polymarket.com/
+   - Look for their GraphQL or REST endpoints
+   
+2. Monitor markets in categories:
+   - "Russia/Ukraine" related
+   - "China/Taiwan" related
+   - "Middle East" conflicts
+   - "Nuclear" events
+   - "NATO" involvement
+   - General "War" and "Conflict" markets
+
+3. Extract for each market:
+   - Market question/title
+   - Current probability (YES price)
+   - 24h/7d price change
+   - Trading volume
+   - Resolution date
+   - Historical price data
+
+MANIFOLD MARKETS Integration:
+1. Use Manifold API: https://docs.manifold.markets/api
+   - GET /v0/markets for listing
+   - GET /v0/market/{id} for details
+   
+2. Search for markets with tags:
+   - #geopolitics, #war, #conflict
+   - #russia, #ukraine, #china, #taiwan
+   - #military, #nuclear
+
+3. Track probability movements:
+   - Alert on >5% moves in 1 hour
+   - Alert on >10% moves in 24 hours
+   - Track betting volume spikes
+
+4. Create composite indicators:
+   - Average probability across similar markets
+   - Confidence score based on liquidity
+   - Trend direction (escalating/de-escalating)
+```
+
+#### Step 2.4: OSINT Feed Aggregator
+
+```
+Build /backend/collectors/osint_feeds.py:
+
+RSS/Atom Feeds to monitor:
+1. News Agencies:
+   - Reuters World News RSS
+   - AP News International
+   - AFP
+   - Al Jazeera
+   - BBC World Service
+
+2. Think Tanks & Analysis:
+   - ISW (Institute for Study of War)
+   - CSIS
+   - Bellingcat
+   - RUSI
+   - War on the Rocks
+
+3. Government Sources:
+   - US State Department press releases
+   - Pentagon briefings
+   - NATO press releases
+   - UN Security Council
+   - OSCE reports
+
+4. Specialized OSINT:
+   - Liveuamap API/feed
+   - ACLED (Armed Conflict Location & Event Data)
+   - GDELT Project events
+   - Nuclear Threat Initiative
+
+Implementation:
+- Poll feeds every 5-15 minutes
+- Deduplicate by URL and content hash
+- Extract and geocode location mentions
+- Tag with source credibility tier (1-5)
+- Generate embeddings for RAG retrieval
+```
+
+#### Step 2.5: Flight Tracking Integration
+
+```
+Build /backend/collectors/flight_tracker.py:
+
+Data Sources:
+1. ADS-B Exchange API (free tier):
+   - Endpoint: https://adsbexchange.com/data/
+   - Real-time aircraft positions
+   - Military aircraft identification
+
+2. OpenSky Network API:
+   - Endpoint: https://opensky-network.org/api/
+   - Free tier: 400 requests/day
+   - State vectors for all aircraft
+
+3. FlightRadar24 (scraping fallback):
+   - Watch for military aircraft
+   - NOTAM-affected areas
+
+Aircraft Categories to Monitor:
+- Military transports (C-17, Il-76, A400M)
+- Tanker aircraft (KC-135, KC-10)
+- Surveillance (RC-135, E-3 AWACS, P-8)
+- Strategic bombers (B-52, Tu-95, B-2)
+- Fighter activity in conflict zones
+- VIP/Government aircraft
+- Unusual civil aviation diversions
+
+Alerting Logic:
+- Track aircraft entering conflict zones
+- Monitor for unusual military patterns
+- Alert on airspace closures
+- Track humanitarian corridors
+
+Store:
+- Position, altitude, heading, speed
+- Aircraft type and registration
+- Callsign patterns
+- Historical track data
+```
+
+#### Step 2.6: Marine Traffic Integration
+
+```
+Build /backend/collectors/marine_tracker.py:
+
+Data Sources:
+1. MarineTraffic API:
+   - Requires API key
+   - Vessel positions, types, routes
+
+2. VesselFinder API:
+   - Alternative source
+   - AIS data feed
+
+3. AIS data aggregators:
+   - Free AIS feeds where available
+   - UN-tracked vessels
+
+Vessels to Monitor:
+- Naval warships (by MMSI patterns)
+- Aircraft carriers and support groups
+- Submarines (when surfaced/detected)
+- Russian Black Sea Fleet
+- US carrier strike groups
+- Chinese naval vessels
+- LNG/Oil tankers (economic warfare)
+- Grain shipments (food security)
+- Vessels with AIS disabled (suspicious)
+
+Key Shipping Lanes:
+- Strait of Hormuz
+- Suez Canal
+- Taiwan Strait
+- Black Sea
+- South China Sea
+- Baltic Sea
+- Red Sea/Bab el-Mandeb
+
+Alerting:
+- Naval vessel position changes
+- Unusual concentrations
+- Blockade indicators
+- Sanctioned vessel movements
+```
+
+#### Step 2.7: Infrastructure Monitor
+
+```
+Build /backend/collectors/infrastructure_monitor.py:
+
+INTERNET CONNECTIVITY:
+1. IODA (Internet Outage Detection and Analysis):
+   - API: https://ioda.inetintel.cc.gatech.edu/
+   - Country/region level outages
+
+2. Cloudflare Radar:
+   - API access for traffic anomalies
+   - DDoS attack indicators
+
+3. NetBlocks:
+   - Follow their alerts
+   - Scrape their dashboard
+
+4. RIPE Atlas:
+   - Network measurement data
+   - BGP anomaly detection
+
+ELECTRICITY:
+1. ENTSO-E (Europe):
+   - Grid frequency data
+   - Cross-border flow data
+
+2. EIA (US Energy Information):
+   - Grid status
+
+3. News monitoring for:
+   - Power plant attacks
+   - Grid failures
+   - Blackout reports
+
+COMMUNICATIONS:
+- Submarine cable status
+- Satellite constellation health
+- GPS/GNSS interference reports
+
+For each monitored region:
+- Baseline normal connectivity
+- Alert on significant deviations
+- Track restoration patterns
+- Correlate with conflict events
+```
+
+#### Step 2.8: Economic Warfare Monitor
+
+```
+Build /backend/collectors/economic_monitor.py:
+
+SANCTIONS & TRADE:
+1. OFAC SDN List updates
+2. EU sanctions database
+3. Trade restriction announcements
+4. Export control changes
+
+FINANCIAL MARKETS:
+1. Key indices to monitor:
+   - VIX (fear index)
+   - Defense sector ETFs
+   - Commodity prices (oil, gas, wheat)
+   - Currency movements (conflict currencies)
+   - Bond yields (flight to safety)
+
+2. APIs:
+   - Yahoo Finance (free)
+   - Alpha Vantage (free tier)
+   - CoinGecko (crypto sanctions evasion)
+
+3. Alert triggers:
+   - >2% moves in oil/gas
+   - Currency devaluations
+   - Bank run indicators
+   - SWIFT disconnection news
+
+SUPPLY CHAIN:
+- Semiconductor supply status
+- Rare earth availability
+- Food export restrictions
+- Energy supply disruptions
+
+CENTRAL BANK ACTIVITY:
+- Emergency rate decisions
+- Reserve currency moves
+- Gold purchases by central banks
+```
+
+---
+
+### Phase 3: RAG Engine & Analysis
+
+#### Step 3.1: Vector Database Setup
+
+```
+Build /backend/database/vector_store.py:
+
+Using ChromaDB (free, local) or Pinecone (cloud):
+
+1. Create collections for each data type:
+   - conflict_events (main events)
+   - intelligence_reports (analysis)
+   - social_signals (Reddit/Twitter)
+   - predictions (market data)
+   - infrastructure_status
+   - economic_signals
+
+2. Embedding model:
+   - Use OpenAI text-embedding-3-small
+   - Or sentence-transformers (free, local)
+
+3. For each document, store:
+   - Raw text content
+   - Embedding vector
+   - Metadata: timestamp, source, location, credibility_score
+   - Geolocation: lat, long, region
+
+4. Implement similarity search:
+   - Query by semantic similarity
+   - Filter by time range
+   - Filter by geographic region
+   - Filter by source type
+
+5. Retention policy:
+   - Keep detailed data for 30 days
+   - Aggregate older data
+   - Maintain key events indefinitely
+```
+
+#### Step 3.2: RAG Analysis Engine
+
+```
+Build /backend/analysis/rag_engine.py:
+
+Core RAG Pipeline:
+1. Query Processing:
+   - Accept natural language questions
+   - Extract key entities and time frames
+   - Identify relevant regions
+
+2. Context Retrieval:
+   - Query vector store for relevant documents
+   - Retrieve top 10-20 most relevant
+   - Include temporal weighting (recent = more relevant)
+   - Include source diversity requirement
+
+3. LLM Analysis (using OpenAI or local model):
+   
+   System Prompt for Conflict Analysis:
+   """
+   You are a senior intelligence analyst specializing in 
+   global conflict monitoring. Analyze the provided context 
+   from multiple sources to:
+   
+   1. Summarize current situation
+   2. Identify key developments in last 24h
+   3. Assess credibility of reports (cross-reference)
+   4. Identify information gaps
+   5. Provide probability assessments where possible
+   6. Flag early warning indicators
+   
+   Always cite your sources. Distinguish between confirmed 
+   events and unverified reports. Use phrases like "multiple 
+   sources confirm" or "single unverified report claims".
+   """
+
+4. Output structured analysis:
+   {
+     "summary": "string",
+     "key_events": [...],
+     "threat_level": 1-10,
+     "escalation_probability": 0-100,
+     "confidence": 0-100,
+     "sources_used": [...],
+     "information_gaps": [...],
+     "watch_items": [...]
+   }
+```
+
+#### Step 3.3: Threat Assessment Engine
+
+```
+Build /backend/analysis/threat_assessor.py:
+
+Implement threat level calculation for each region:
+
+INPUT FACTORS:
+1. Military Activity Score (0-100):
+   - Troop movements detected
+   - Aircraft activity levels
+   - Naval positioning
+   - Exercise announcements vs. actual activity
+
+2. Information Environment Score (0-100):
+   - Social media volume spike
+   - OSINT report frequency
+   - Official statement frequency
+   - Information operations detected
+
+3. Economic Stress Score (0-100):
+   - Sanctions activity
+   - Currency volatility
+   - Trade restrictions
+   - Energy/commodity prices
+
+4. Infrastructure Status Score (0-100):
+   - Internet connectivity
+   - Power grid status
+   - Communications stability
+   - Cyber attack indicators
+
+5. Prediction Market Consensus (0-100):
+   - Aggregated market probabilities
+   - Volume-weighted confidence
+
+CALCULATION:
+overall_threat = weighted_average(
+    military=0.30,
+    information=0.20,
+    economic=0.15,
+    infrastructure=0.15,
+    prediction=0.20
+)
+
+TREND ANALYSIS:
+- Compare current to 24h/7d/30d ago
+- Calculate velocity of change
+- Project short-term trajectory
+
+OUTPUT per region:
+{
+    "region": "Ukraine",
+    "threat_level": 78,
+    "trend": "escalating",
+    "velocity": "+5 points/24h",
+    "components": {...},
+    "key_drivers": [...]
+}
+```
+
+#### Step 3.4: Prediction Engine
+
+```
+Build /backend/analysis/prediction_engine.py:
+
+Generate probabilistic forecasts:
+
+1. Event Categories to Predict:
+   - Major offensive operations (7-day window)
+   - Escalation beyond current scope
+   - De-escalation/ceasefire likelihood
+   - Third-party intervention
+   - Infrastructure attacks
+   - Nuclear/WMD use signals
+   - Humanitarian crisis escalation
+
+2. Prediction Methodology:
+   
+   a) Historical Pattern Matching:
+      - Query similar past situations from database
+      - What were precursor signals?
+      - What outcomes occurred?
+   
+   b) Current Indicator Analysis:
+      - Weight current signals against historical patterns
+      - Account for unique factors
+   
+   c) Market Integration:
+      - Include prediction market probabilities
+      - Weight by liquidity/reliability
+   
+   d) LLM Synthesis:
+      - Provide all factors to RAG engine
+      - Request structured probability assessment
+      - Require reasoning chain
+
+3. Output Format:
+{
+    "prediction_id": "uuid",
+    "timestamp": "ISO8601",
+    "region": "string",
+    "event_type": "string",
+    "time_horizon": "7 days",
+    "probability": 35,
+    "confidence_interval": [25, 45],
+    "confidence": "medium",
+    "key_factors": [
+        {"factor": "...", "direction": "supporting", "weight": 0.3},
+        ...
+    ],
+    "historical_analogs": [...],
+    "market_consensus": 40,
+    "reasoning": "string"
+}
+
+4. Calibration:
+   - Track prediction accuracy over time
+   - Adjust methodology based on performance
+   - Display accuracy metrics in UI
+```
+
+---
+
+### Phase 4: Backend API & Real-time Updates
+
+#### Step 4.1: FastAPI Server
+
+```
+Build /backend/main.py and /backend/api/routes.py:
+
+Core API Endpoints:
+
+GET /api/events
+- Returns recent conflict events
+- Query params: region, time_range, event_type, limit
+- Response: GeoJSON FeatureCollection
+
+GET /api/events/{event_id}
+- Detailed event information
+- All source data linked
+- Analysis and assessments
+
+GET /api/regions
+- List all monitored regions
+- Current threat levels
+- Summary statistics
+
+GET /api/regions/{region}/analysis
+- Full RAG-generated analysis for region
+- Historical trend data
+- Current predictions
+
+GET /api/predictions
+- All active predictions
+- Historical accuracy data
+- Filter by region/type
+
+GET /api/flights
+- Current military aircraft positions
+- Filter by type, region
+
+GET /api/vessels
+- Current naval vessel positions
+- Filter by type, region
+
+GET /api/infrastructure/{region}
+- Internet connectivity status
+- Power grid status
+- Recent outages
+
+GET /api/economic
+- Key economic indicators
+- Sanctions updates
+- Market movements
+
+GET /api/markets
+- Prediction market aggregation
+- Price histories
+- Volume data
+
+POST /api/ask
+- Natural language query endpoint
+- RAG-powered Q&A
+- Request: {"question": "string", "context": {...}}
+- Response: {"answer": "string", "sources": [...]}
+
+GET /api/report/daily
+- Auto-generated daily intelligence brief
+- PDF/Markdown export option
+```
+
+#### Step 4.2: WebSocket Real-time Updates
+
+```
+Build /backend/api/websocket.py:
+
+WebSocket Connection Handler:
+
+1. Client connects to ws://server/ws
+
+2. Server sends initial state:
+   {
+     "type": "initial_state",
+     "events": [...],
+     "threat_levels": {...},
+     "flights": [...],
+     "vessels": [...]
+   }
+
+3. Server pushes updates:
+   
+   New Event:
+   {
+     "type": "new_event",
+     "event": {
+       "id": "uuid",
+       "timestamp": "ISO8601",
+       "location": {"lat": x, "lng": y},
+       "title": "string",
+       "description": "string",
+       "severity": 1-10,
+       "sources": [...],
+       "category": "string"
+     }
+   }
+   
+   Position Update (flights/vessels):
+   {
+     "type": "position_update",
+     "category": "flight|vessel",
+     "positions": [...]
+   }
+   
+   Threat Level Change:
+   {
+     "type": "threat_update",
+     "region": "string",
+     "previous": 65,
+     "current": 72,
+     "drivers": [...]
+   }
+   
+   Prediction Market Move:
+   {
+     "type": "market_alert",
+     "market": "string",
+     "previous": 35,
+     "current": 48,
+     "change_24h": "+13%"
+   }
+   
+   Infrastructure Alert:
+   {
+     "type": "infrastructure_alert",
+     "region": "string",
+     "system": "internet|power|comms",
+     "status": "degraded|outage|restored",
+     "details": "string"
+   }
+
+4. Implement pub/sub with Redis:
+   - Collectors publish to channels
+   - WebSocket server subscribes
+   - Fan out to all connected clients
+```
+
+---
+
+### Phase 5: Frontend Map Interface
+
+#### Step 5.1: React App Structure
+
+```
+Build /frontend/src/App.jsx:
+
+Main application structure:
+
+<App>
+  <Header>
+    - Logo/title
+    - Global threat indicator
+    - Last update timestamp
+    - Settings button
+  </Header>
+  
+  <MainLayout>
+    <Sidebar>
+      <RegionSelector />
+      <ThreatLevelPanel />
+      <FilterControls />
+      <PredictionMarketWidget />
+      <LiveFeed />
+    </Sidebar>
+    
+    <MapContainer>
+      <GoogleMap />
+      <MapLayers>
+        - Conflict events (markers/clusters)
+        - Military flights (animated paths)
+        - Naval vessels (animated paths)
+        - Threat heat map overlay
+        - Infrastructure status overlay
+        - Territorial control overlay
+      </MapLayers>
+      <MapControls>
+        - Layer toggles
+        - Time range slider
+        - Search
+      </MapControls>
+    </MapContainer>
+    
+    <RightPanel>
+      <EventDetail /> (when event selected)
+      <RegionAnalysis /> (when region selected)
+      <ChatInterface /> (for RAG Q&A)
+    </RightPanel>
+  </MainLayout>
+  
+  <AlertBar>
+    - Breaking alerts
+    - High-priority notifications
+  </AlertBar>
+</App>
+```
+
+#### Step 5.2: Google Maps Integration
+
+```
+Build /frontend/src/components/Map.jsx:
+
+Using @vis.gl/react-google-maps:
+
+1. Map Configuration:
+   - Initial view: world view, zoom level 2
+   - Style: dark/satellite hybrid for military context
+   - Enable all gesture handling
+
+2. Layer System:
+
+   a) Conflict Events Layer:
+      - Cluster markers at low zoom
+      - Individual markers at high zoom
+      - Color code by severity (green/yellow/orange/red)
+      - Size by significance
+      - Animated pulse for recent events (<1hr)
+   
+   b) Flight Tracking Layer:
+      - Aircraft icons by type
+      - Trail showing recent path
+      - Click for aircraft details
+      - Filter by military/civilian
+   
+   c) Marine Tracking Layer:
+      - Ship icons by type
+      - Color code: military red, commercial blue
+      - Click for vessel details
+   
+   d) Heat Map Layer:
+      - Density of events over time
+      - Threat level intensity
+      - Toggle on/off
+   
+   e) Infrastructure Overlay:
+      - Internet connectivity heat map
+      - Click regions for details
+   
+   f) Control Lines:
+      - Draw territorial control
+      - Front lines where applicable
+      - Safe zones/corridors
+
+3. Interactivity:
+   - Click marker: show event popup
+   - Click region: show region panel
+   - Right-click: "Analyze this area"
+   - Drag selection: multi-event analysis
+```
+
+#### Step 5.3: Event Markers and Popups
+
+```
+Build /frontend/src/components/EventMarker.jsx:
+
+Marker Types by Category:
+
+COMBAT:
+- 💥 Explosion/strike (red)
+- 🎯 Confirmed hit (dark red)
+- 🔫 Armed clash (orange)
+- 🚀 Missile launch (red pulsing)
+
+MILITARY MOVEMENT:
+- 🛡️ Troop movement (yellow)
+- 🚛 Convoy (yellow)
+- ✈️ Aircraft activity (blue)
+- 🚢 Naval activity (blue)
+
+INFRASTRUCTURE:
+- ⚡ Power disruption (purple)
+- 🌐 Internet outage (purple)
+- 📡 Communications (purple)
+
+HUMANITARIAN:
+- 🏥 Medical emergency (white cross)
+- 🏃 Displacement (grey)
+- 🆘 Aid delivery (green)
+
+ECONOMIC:
+- 💰 Sanctions (gold)
+- 📊 Market event (gold)
+
+Event Popup Content:
+{
+  Header: timestamp + location + severity badge
+  Body:
+    - Event title
+    - Brief description
+    - Source list with credibility indicators
+    - Key entities mentioned
+  Actions:
+    - "View full analysis"
+    - "Related events"
+    - "Sources" expand
+    - "Add to watch list"
+}
+```
+
+#### Step 5.4: Sidebar Components
+
+```
+Build sidebar components:
+
+1. ThreatLevelPanel (/components/ThreatLevelPanel.jsx):
+   - List of monitored regions
+   - Color-coded threat bars (1-100)
+   - Trend arrows (↑↓→)
+   - Sparkline charts (7-day trend)
+   - Click to focus map on region
+
+2. FilterControls (/components/FilterControls.jsx):
+   - Time range selector (1h, 6h, 24h, 7d, 30d)
+   - Event type toggles
+   - Source filter (by credibility tier)
+   - Severity threshold slider
+   - Show/hide layers toggles
+
+3. PredictionMarketWidget (/components/PredictionMarkets.jsx):
+   - Top moving markets
+   - Key conflict probabilities
+   - Mini charts for trends
+   - Links to full market details
+
+4. LiveFeed (/components/LiveFeed.jsx):
+   - Scrolling real-time events
+   - Auto-update via WebSocket
+   - Click to focus on map
+   - Filter by category
+   - Priority highlighting
+```
+
+#### Step 5.5: Analysis Panel
+
+```
+Build /frontend/src/components/AnalysisPanel.jsx:
+
+When a region or event is selected:
+
+REGION ANALYSIS VIEW:
+┌─────────────────────────────────────┐
+│ 🇺🇦 Ukraine                    [×] │
+├─────────────────────────────────────┤
+│ THREAT LEVEL: 78/100 ████████░░     │
+│ Trend: ↑ Escalating (+5 in 24h)     │
+├─────────────────────────────────────┤
+│ KEY INDICATORS:                     │
+│ ├─ Military Activity: 85 ⬆️         │
+│ ├─ Information Volume: 72 ⬆️        │
+│ ├─ Infrastructure: 65 (stable)      │
+│ ├─ Economic Stress: 70 ⬆️           │
+│ └─ Market Consensus: 82 ⬆️          │
+├─────────────────────────────────────┤
+│ LATEST ANALYSIS (auto-generated):   │
+│ "Multiple sources confirm increased │
+│ artillery activity in Zaporizhzhia  │
+│ region over past 6 hours..."        │
+│                        [Read more]  │
+├─────────────────────────────────────┤
+│ PREDICTIONS:                        │
+│ • Major offensive (7d): 35%         │
+│ • Escalation beyond: 22%            │
+│ • Ceasefire talks: 12%              │
+├─────────────────────────────────────┤
+│ SOURCES (last 24h):                 │
+│ 📊 142 social media posts           │
+│ 📰 23 news articles                 │
+│ 🎯 8 OSINT confirmations            │
+│ 📈 5 market movements               │
+├─────────────────────────────────────┤
+│ [Generate Full Report] [Ask AI]     │
+└─────────────────────────────────────┘
+
+EVENT DETAIL VIEW:
+- Full event description
+- All linked sources with excerpts
+- Related events (before/after)
+- Map context (mini-map)
+- AI-generated significance assessment
+```
+
+#### Step 5.6: AI Chat Interface
+
+```
+Build /frontend/src/components/ChatInterface.jsx:
+
+RAG-powered Q&A panel:
+
+Features:
+1. Natural language input
+2. Context-aware responses
+3. Source citations with links
+4. Follow-up suggestions
+
+UI Design:
+┌─────────────────────────────────────┐
+│ Ask Intelligence AI           [?]   │
+├─────────────────────────────────────┤
+│ ┌─────────────────────────────────┐ │
+│ │ USER: What's the latest on     │ │
+│ │ Russian naval activity in the  │ │
+│ │ Black Sea?                     │ │
+│ └─────────────────────────────────┘ │
+│ ┌─────────────────────────────────┐ │
+│ │ AI: Based on data from the     │ │
+│ │ past 24 hours, Russian Black   │ │
+│ │ Sea Fleet shows increased...   │ │
+│ │                                │ │
+│ │ SOURCES:                       │ │
+│ │ • @NavalAnalyst (2h ago) [1]   │ │
+│ │ • MarineTraffic data [2]       │ │
+│ │ • ISW Daily Report [3]         │ │
+│ │                                │ │
+│ │ CONFIDENCE: Medium (67%)       │ │
+│ │                                │ │
+│ │ Suggested follow-ups:          │ │
+│ │ • "Any submarine activity?"    │ │
+│ │ • "Compare to last week"       │ │
+│ └─────────────────────────────────┘ │
+├─────────────────────────────────────┤
+│ [Type your question...]      [Send] │
+└─────────────────────────────────────┘
+
+Backend integration:
+- POST to /api/ask
+- Stream response via WebSocket
+- Cache recent Q&A pairs
+- Link sources to map events
+```
+
+---
+
+### Phase 6: Visualization & Reporting
+
+#### Step 6.1: Dashboard Widgets
+
+```
+Build /frontend/src/components/Dashboard.jsx:
+
+GLOBAL OVERVIEW (toggle view):
+
+┌───────────────────────────────────────────┐
+│ GLOBAL CONFLICT MONITOR        [Map View] │
+├───────────────────────────────────────────┤
+│ ┌─────────┐ ┌─────────┐ ┌─────────┐      │
+│ │ EVENTS  │ │ THREAT  │ │ MARKETS │      │
+│ │  247    │ │  HIGH   │ │  ↑12%   │      │
+│ │ (24h)   │ │ 3 zones │ │ avg     │      │
+│ └─────────┘ └─────────┘ └─────────┘      │
+├───────────────────────────────────────────┤
+│ REGIONAL THREAT LEVELS (7-day trend):     │
+│ ┌───────────────────────────────────────┐ │
+│ │ [Stacked area chart showing threat    │ │
+│ │  levels for top 5 conflict zones]     │ │
+│ └───────────────────────────────────────┘ │
+├───────────────────────────────────────────┤
+│ EVENT TIMELINE (24h):                     │
+│ ┌───────────────────────────────────────┐ │
+│ │ [Timeline with event markers by type] │ │
+│ └───────────────────────────────────────┘ │
+├───────────────────────────────────────────┤
+│ PREDICTION MARKET MOVERS:                 │
+│ ┌───────────────────────────────────────┐ │
+│ │ Russia escalation: 45% (+8%) 📈       │ │
+│ │ Taiwan conflict: 18% (+2%) 📈         │ │
+│ │ Iran nuclear: 31% (-3%) 📉            │ │
+│ └───────────────────────────────────────┘ │
+└───────────────────────────────────────────┘
+
+Use recharts for all visualizations:
+- Area charts for trends
+- Bar charts for comparisons
+- Gauge charts for threat levels
+- Mini sparklines inline
+```
+
+#### Step 6.2: Automated Report Generation
+
+```
+Build /backend/analysis/report_generator.py:
+
+Generate daily intelligence briefs:
+
+1. Report Structure:
+   
+   DAILY INTELLIGENCE BRIEF
+   Date: [timestamp]
+   Classification: OPEN SOURCE
+   
+   EXECUTIVE SUMMARY
+   - [3-5 sentence AI-generated summary]
+   - [Key statistics: events, alerts, changes]
+   
+   CRITICAL DEVELOPMENTS (last 24h)
+   - [Bulleted list of high-priority events]
+   - [Each with location, time, sources]
+   
+   REGIONAL ASSESSMENTS
+   [For each monitored region]
+   - Current threat level and trend
+   - Key events
+   - Prediction outlook
+   - Information gaps
+   
+   ECONOMIC & INFRASTRUCTURE
+   - Sanctions updates
+   - Market movements
+   - Infrastructure incidents
+   
+   PREDICTION MARKET SUMMARY
+   - Significant probability changes
+   - Interpretation
+   
+   WATCH LIST
+   - Emerging situations to monitor
+   - Early warning indicators triggered
+   
+   ASSESSMENT CONFIDENCE
+   - Overall confidence level
+   - Key uncertainties
+   - Data quality notes
+
+2. Export Formats:
+   - Markdown (for display)
+   - PDF (for download)
+   - JSON (for API)
+
+3. Scheduling:
+   - Auto-generate at 0600 UTC
+   - Trigger on major events (threat level spike)
+   - On-demand via API
+```
+
+#### Step 6.3: Alert System
+
+```
+Build alert system:
+
+Backend: /backend/analysis/alerter.py
+
+Alert Types and Thresholds:
+
+CRITICAL (immediate push):
+- Threat level increase >10 points in 1 hour
+- Prediction market move >15% in 1 hour
+- Major infrastructure outage
+- Confirmed military escalation
+- Nuclear-related signals
+
+HIGH (prominent notification):
+- Threat level increase >5 points in 1 hour
+- New conflict event severity >8
+- Significant troop/vessel movements
+- Multiple corroborating sources
+
+MEDIUM (feed priority):
+- Notable events (severity 6-8)
+- Prediction market moves 5-15%
+- Single source high-impact reports
+
+LOW (standard feed):
+- Routine updates
+- Minor events
+- Background monitoring
+
+Frontend: /frontend/src/components/AlertBar.jsx
+
+Alert Presentation:
+┌────────────────────────────────────────────────┐
+│ 🚨 CRITICAL: Significant military activity     │
+│ detected near [location]. Multiple sources     │
+│ confirming.                    [View] [Dismiss]│
+└────────────────────────────────────────────────┘
+
+Features:
+- Sound notification for critical
+- Desktop notification support
+- Alert history panel
+- Acknowledge/dismiss tracking
+```
+
+---
+
+### Phase 7: Deployment & Operations
+
+#### Step 7.1: Environment Configuration
+
+```
+Create .env file:
+
+# API Keys
+OPENAI_API_KEY=your_key_here
+GOOGLE_MAPS_API_KEY=your_key_here
+
+# Reddit API
+REDDIT_CLIENT_ID=your_id
+REDDIT_CLIENT_SECRET=your_secret
+REDDIT_USER_AGENT=SituationMonitor/1.0
+
+# Twitter/X Cookies (extract from browser)
+TWITTER_CT0=your_ct0_cookie
+TWITTER_AUTH_TOKEN=your_auth_token
+
+# Data Sources
+ADSB_API_KEY=optional_key
+MARINE_TRAFFIC_API_KEY=optional_key
+
+# Database
+REDIS_URL=redis://localhost:6379
+DATABASE_URL=sqlite:///./situation.db
+
+# Vector Store
+CHROMA_PERSIST_DIR=./chroma_data
+# or PINECONE_API_KEY if using Pinecone
+
+# Server
+HOST=0.0.0.0
+PORT=8000
+DEBUG=false
+```
+
+#### Step 7.2: Replit Configuration
+
+```
+Create replit.nix:
+
+{ pkgs }: {
+  deps = [
+    pkgs.python311
+    pkgs.nodejs-18_x
+    pkgs.redis
+    pkgs.geckodriver
+    pkgs.chromium
+  ];
+}
+
+Create .replit:
+
+run = "bash start.sh"
+entrypoint = "backend/main.py"
+
+[deployment]
+run = ["bash", "start.sh"]
+
+Create start.sh:
+
+#!/bin/bash
+
+# Start Redis
+redis-server --daemonize yes
+
+# Install Python dependencies
+pip install -r requirements.txt --break-system-packages
+
+# Install Node dependencies
+cd frontend && npm install && cd ..
+
+# Build frontend
+cd frontend && npm run build && cd ..
+
+# Start backend (serves built frontend)
+python backend/main.py
+```
+
+#### Step 7.3: Data Collection Scheduler
+
+```
+Build /backend/scheduler.py:
+
+Use APScheduler or asyncio tasks:
+
+Collection Intervals:
+- Reddit: Stream (real-time) + poll every 2 minutes
+- Twitter: Stream (real-time via cookies) + poll every 1 minute
+- Prediction Markets: Every 5 minutes
+- OSINT Feeds: Every 10 minutes
+- Flight Tracking: Every 30 seconds (active zones) / 5 minutes (global)
+- Marine Tracking: Every 2 minutes (active zones) / 15 minutes (global)
+- Infrastructure: Every 5 minutes
+- Economic: Every 15 minutes
+
+Analysis Jobs:
+- Threat level recalculation: Every 5 minutes
+- Prediction updates: Every 30 minutes
+- Daily report: 0600 UTC
+- Vector database maintenance: Daily at 0300 UTC
+
+Rate Limiting:
+- Implement exponential backoff
+- Track API quota usage
+- Graceful degradation if limits hit
+```
+
+#### Step 7.4: Monitoring & Logging
+
+```
+Build /backend/monitoring.py:
+
+Track:
+1. Collector Status:
+   - Last successful fetch per source
+   - Error counts
+   - Rate limit status
+
+2. Data Quality:
+   - Events collected per hour
+   - Source distribution
+   - Geocoding success rate
+
+3. System Health:
+   - Memory usage
+   - Database size
+   - WebSocket connections
+
+4. Analysis Performance:
+   - RAG query response times
+   - Prediction accuracy tracking
+   - Embedding generation rate
+
+Display in admin panel:
+/admin (password protected)
+- All metrics dashboards
+- Manual collector triggers
+- Cache management
+- Error logs
+```
+
+---
+
+### Phase 8: Additional Data Sources (Enhancement)
+
+#### Step 8.1: SIGINT Proxies (Public)
+
+```
+Sources that aggregate signals intelligence indicators:
+
+1. Radio Monitoring:
+   - WebSDR stations (public HF receivers)
+   - Monitor for unusual military frequencies
+   - EAM (Emergency Action Message) watchers
+
+2. Satellite Imagery:
+   - Sentinel Hub (free tier)
+   - Planet Labs (if budget allows)
+   - FIRMS (NASA fire data - often shows strikes)
+   - Synthetic aperture radar for night/cloud
+
+3. Seismic Data:
+   - USGS for potential nuclear tests
+   - NORSAR for North Korea monitoring
+   - Correlate with reported explosions
+
+4. Space Tracking:
+   - Space-Track.org (requires registration)
+   - Monitor military satellite movements
+   - Launch detection
+
+Implementation:
+- Add to collectors module
+- Lower update frequency (hourly)
+- Higher credibility weight when available
+```
+
+#### Step 8.2: Document & Report Ingestion
+
+```
+Build /backend/collectors/document_ingester.py:
+
+Ingest long-form intelligence products:
+
+Sources:
+- ISW daily reports (PDF/HTML)
+- CSIS analysis pieces
+- Government reports (State Dept, DOD)
+- UN reports
+- Academic papers (conflict studies)
+
+Processing:
+1. Fetch documents (PDF, HTML)
+2. Extract text with structure
+3. Chunk into semantic sections
+4. Generate embeddings
+5. Store with metadata:
+   - Source organization
+   - Publication date
+   - Author/analyst
+   - Region/topic tags
+
+RAG Integration:
+- Include in context retrieval
+- Weight by recency and source authority
+- Link to original documents
+```
+
+---
+
+### Testing & Validation
+
+```
+Before deployment, validate:
+
+1. Data Collection:
+   - Each collector retrieves data successfully
+   - Rate limits respected
+   - Error handling works
+   - Geocoding produces valid coordinates
+
+2. Analysis:
+   - RAG retrieves relevant context
+   - Threat calculations produce sensible results
+   - Predictions are generated correctly
+   - Reports are coherent
+
+3. Real-time:
+   - WebSocket connections stable
+   - Updates delivered promptly
+   - No memory leaks over time
+   - Graceful reconnection
+
+4. Frontend:
+   - Map renders correctly
+   - Markers appear at correct locations
+   - Layers toggle properly
+   - Filters work as expected
+   - Mobile responsive
+
+5. Security:
+   - API keys not exposed
+   - CORS configured properly
+   - Input sanitization in place
+   - No PII leakage
+```
+
+---
+
+### Notes on Data Source Reliability
+
+```
+CREDIBILITY TIERS (assign to all data):
+
+Tier 1 - Confirmed (weight: 1.0):
+- Government official statements
+- Major wire services (Reuters, AP)
+- Satellite imagery confirmation
+- Multiple independent OSINT confirmations
+
+Tier 2 - Reliable (weight: 0.8):
+- Established journalists
+- Known reliable OSINT accounts
+- Think tank analysis
+- Prediction markets (high liquidity)
+
+Tier 3 - Plausible (weight: 0.5):
+- Single OSINT source
+- Regional news outlets
+- Social media with some verification
+- Low liquidity prediction markets
+
+Tier 4 - Unverified (weight: 0.3):
+- Anonymous social media
+- Single witness accounts
+- Rumors and speculation
+- Unconfirmed reports
+
+ALWAYS:
+- Cross-reference across sources
+- Note confidence levels
+- Track source accuracy over time
+- Flag contradictory information
+```
+
+---
+
+This specification provides a complete blueprint for building a global conflict monitoring system. Start with Phase 1-3 to establish core data collection and analysis, then build out the frontend in Phase 4-5, and add refinements in Phase 6-8.
